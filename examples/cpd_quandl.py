@@ -1,11 +1,12 @@
 import argparse
 import datetime as dt
+import os
 
 import pandas as pd
 
 import mom_trans.changepoint_detection as cpd
 from mom_trans.data_prep import calc_returns
-from data.pull_data import pull_quandl_sample_data
+from data.pull_data import pull_quandl_sample_data, pull_custom_sample_data
 
 from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
 
@@ -13,7 +14,11 @@ from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
 def main(
     ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int
 ):
-    data = pull_quandl_sample_data(ticker)
+    path = os.path.join('data', 'currency', f'{ticker}.csv')
+    if os.path.exists(path):
+        data = pull_custom_sample_data(path)
+    else:
+        data = pull_quandl_sample_data(ticker)
     data["daily_returns"] = calc_returns(data["close"])
 
     cpd.run_module(

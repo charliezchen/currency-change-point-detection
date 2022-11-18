@@ -16,6 +16,14 @@ def pull_quandl_sample_data(ticker: str) -> pd.DataFrame:
         .replace(0.0, np.nan)
     )
 
+def pull_custom_sample_data(path) -> pd.DataFrame:
+    return (
+        pd.read_csv(path, parse_dates=[0])
+        .rename(columns={"Trade Date": "date", "Date": "date", "Settle": "close"})
+        .set_index("date")
+        .replace(0.0, np.nan)
+    )
+
 
 def pull_pinnacle_data(ticker: str) -> pd.DataFrame:
     return pd.read_csv(

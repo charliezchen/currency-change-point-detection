@@ -9,6 +9,10 @@ CPD_QUANDL_OUTPUT_FOLDER = lambda lbw: os.path.join(
     "data", f"quandl_cpd_{(lbw if lbw else 'none')}lbw"
 )
 
+CPD_CURRENCY_OUTPUT_FOLDER = lambda lbw: os.path.join(
+    "data", f"CURRENCY_cpd_{(lbw if lbw else 'none')}lbw"
+)
+
 CPD_QUANDL_OUTPUT_FOLDER_DEFAULT = CPD_QUANDL_OUTPUT_FOLDER(CPD_DEFAULT_LBW)
 
 FEATURES_QUANDL_FILE_PATH = lambda lbw: os.path.join(
@@ -16,6 +20,8 @@ FEATURES_QUANDL_FILE_PATH = lambda lbw: os.path.join(
 )
 
 FEATURES_QUANDL_FILE_PATH_DEFAULT = FEATURES_QUANDL_FILE_PATH(CPD_DEFAULT_LBW)
+
+CURRENCY_TICKERS = ['AUD', 'NZD', 'JPY', 'SEK', 'GBP', 'EUR', 'CHF']
 
 QUANDL_TICKERS = [
     "ICE_SB",
