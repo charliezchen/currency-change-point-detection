@@ -6,14 +6,13 @@ import gpflow
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from gpflow.kernels import ChangePoints, Matern32
+from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
 
 Kernel = gpflow.kernels.base.Kernel
 
 MAX_ITERATIONS = 200
-
 
 class ChangePointsWithBounds(ChangePoints):
     def __init__(
@@ -70,6 +69,7 @@ def fit_matern_kernel(
     variance: float = 1.0,
     lengthscale: float = 1.0,
     likelihood_variance: float = 1.0,
+    kernel_choice="Matern32"
 ) -> Tuple[float, Dict[str, float]]:
     """Fit the Matern 3/2 kernel on a time-series
 
@@ -82,12 +82,25 @@ def fit_matern_kernel(
     Returns:
         Tuple[float, Dict[str, float]]: negative log marginal likelihood and paramters after fitting the GP
     """
+    current_kernel = None
+
+    if kernel_choice == "Matern12":
+        current_kernel = Matern12(variance=variance, lengthscales=lengthscale)
+    elif kernel_choice == "Matern32":
+        current_kernel = Matern32(variance=variance, lengthscales=lengthscale)
+    elif kernel_choice == "Matern52":
+        current_kernel = Matern52(variance=variance, lengthscales=lengthscale)
+    else:
+        raise NotImplementedError
+
+    print(f"+++++ current_kernel = {current_kernel} +++++")
+
     m = gpflow.models.GPR(
         data=(
             time_series_data.loc[:, ["X"]].to_numpy(),
             time_series_data.loc[:, ["Y"]].to_numpy(),
         ),
-        kernel=Matern32(variance=variance, lengthscales=lengthscale),
+        kernel=current_kernel,
         noise_variance=likelihood_variance,
     )
     opt = gpflow.optimizers.Scipy()
@@ -111,6 +124,7 @@ def fit_changepoint_kernel(
     kC_likelihood_variance=1.0,
     kC_changepoint_location=None,
     kC_steepness=1.0,
+    kernel_choice="Matern32",
 ) -> Tuple[float, float, Dict[str, float]]:
     """Fit the Changepoint kernel on a time-series
 
@@ -127,6 +141,24 @@ def fit_changepoint_kernel(
     Returns:
         Tuple[float, float, Dict[str, float]]: changepoint location, negative log marginal likelihood and paramters after fitting the GP
     """
+    kernel1 = None
+    kernel2 = None
+
+    if kernel_choice == "Matern12":
+        kernel1 = Matern12(variance=k1_variance, lengthscales=k1_lengthscale)
+        kernel2 = Matern12(variance=k2_variance, lengthscales=k2_lengthscale)
+    elif kernel_choice == "Matern32":
+        kernel1 = Matern32(variance=k1_variance, lengthscales=k1_lengthscale)
+        kernel2 = Matern32(variance=k2_variance, lengthscales=k2_lengthscale)
+    elif kernel_choice == "Matern52":
+        kernel1 = Matern52(variance=k1_variance, lengthscales=k1_lengthscale)
+        kernel2 = Matern52(variance=k2_variance, lengthscales=k2_lengthscale)
+    else:
+        raise NotImplementedError
+
+    print(f"+++++ kernel1 = {kernel1} +++++")
+    print(f"+++++ kernel2 = {kernel2} +++++")
+
     if not kC_changepoint_location:
         kC_changepoint_location = (
             time_series_data["X"].iloc[0] + time_series_data["X"].iloc[-1]
@@ -139,8 +171,8 @@ def fit_changepoint_kernel(
         ),
         kernel=ChangePointsWithBounds(
             [
-                Matern32(variance=k1_variance, lengthscales=k1_lengthscale),
-                Matern32(variance=k2_variance, lengthscales=k2_lengthscale),
+                kernel1,
+                kernel2,
             ],
             location=kC_changepoint_location,
             interval=(time_series_data["X"].iloc[0], time_series_data["X"].iloc[-1]),
@@ -194,6 +226,7 @@ def changepoint_loc_and_score(
     # kC_likelihood_variance=None,
     kC_changepoint_location=None,
     kC_steepness=1.0,
+    kernel_choice="Matern32"
 ) -> Tuple[float, float, float, Dict[str, float], Dict[str, float]]:
     """For a single time-series window, calcualte changepoint score and location as detailed in https://arxiv.org/pdf/2105.13727.pdf
 
@@ -222,7 +255,7 @@ def changepoint_loc_and_score(
 
     try:
         (kM_nlml, kM_params) = fit_matern_kernel(
-            time_series_data, kM_variance, kM_lengthscale, kM_likelihood_variance
+            time_series_data, kM_variance, kM_lengthscale, kM_likelihood_variance,kernel_choice=kernel_choice
         )
     except BaseException as ex:
         # do not want to optimise again if the hyperparameters
@@ -234,7 +267,7 @@ def changepoint_loc_and_score(
         (
             kM_nlml,
             kM_params,
-        ) = fit_matern_kernel(time_series_data)
+        ) = fit_matern_kernel(time_series_data,kernel_choice=kernel_choice)
 
     is_cp_location_default = (
         (not kC_changepoint_location)
@@ -272,6 +305,7 @@ def changepoint_loc_and_score(
             kC_likelihood_variance=kC_likelihood_variance,
             kC_changepoint_location=kC_changepoint_location,
             kC_steepness=kC_steepness,
+            kernel_choice=kernel_choice
         )
     except BaseException as ex:
         # do not want to optimise again if the hyperparameters
@@ -292,7 +326,7 @@ def changepoint_loc_and_score(
             changepoint_location,
             kC_nlml,
             kC_params,
-        ) = fit_changepoint_kernel(time_series_data)
+        ) = fit_changepoint_kernel(time_series_data, kernel_choice=kernel_choice)
 
     cp_score = changepoint_severity(kC_nlml, kM_nlml)
     cp_loc_normalised = (time_series_data["X"].iloc[-1] - changepoint_location) / (
@@ -308,6 +342,7 @@ def run_module(
     output_csv_file_path: str,
     start_date: dt.datetime = None,
     end_date: dt.datetime = None,
+    kernel_choice: str = "Matern32",
     use_kM_hyp_to_initialise_kC=True,
 ):
     """Run the changepoint detection module as described in https://arxiv.org/pdf/2105.13727.pdf
@@ -365,7 +400,7 @@ def run_module(
         try:
             if use_kM_hyp_to_initialise_kC:
                 cp_score, cp_loc, cp_loc_normalised, _, _ = changepoint_loc_and_score(
-                    ts_data_window,
+                    ts_data_window,kernel_choice=kernel_choice
                 )
             else:
                 cp_score, cp_loc, cp_loc_normalised, _, _ = changepoint_loc_and_score(
@@ -375,6 +410,7 @@ def run_module(
                     k2_lengthscale=1.0,
                     k2_variance=1.0,
                     kC_likelihood_variance=1.0,
+                    kernel_choice=kernel_choice
                 )
 
         except:
