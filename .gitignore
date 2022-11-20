@@ -132,6 +132,7 @@ results/
 .vscode/
 nohup*
 data/*
+!data/quandl
 !data/quandl/*
 !data/pull_data.py
 !data/download_quandl_data.py
