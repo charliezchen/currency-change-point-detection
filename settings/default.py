@@ -6,9 +6,9 @@ CPD_DEFAULT_KERNEL = "Matern32"
 BACKTEST_AVERAGE_BASIS_POINTS = [None, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0]
 USE_KM_HYP_TO_INITIALISE_KC = True
 
-# CPD_QUANDL_OUTPUT_FOLDER = lambda lbw, kernel_choice: os.path.join(
-#     "data", f"quandl_cpd_{(lbw if lbw else 'none')}lbw_{kernel_choice}"
-# )
+CPD_QUANDL_OUTPUT_FOLDER = lambda lbw, kernel_choice: os.path.join(
+    "data", f"quandl_cpd_{(lbw if lbw else 'none')}lbw_{kernel_choice}"
+)
 
 CPD_CURRENCY_OUTPUT_FOLDER = lambda lbw, kernel_choice: os.path.join(
     "data", f"CURRENCY_cpd_{(lbw if lbw else 'none')}lbw_{kernel_choice}"

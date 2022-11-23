@@ -11,12 +11,13 @@ from settings.default import (
 N_WORKERS = len(CURRENCY_TICKERS)
 
 
-def main(lookback_window_length: int):
-    if not os.path.exists(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length)):
-        os.mkdir(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length))
+def main(lookback_window_length: int, kernel: str):
+    if not os.path.exists(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, kernel)):
+        os.mkdir(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, kernel))
 
+    print(f"current kernel: {kernel}")
     all_processes = [
-        f'python -m examples.cpd_quandl "{ticker}" "{os.path.join(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length), ticker + ".csv")}" "1990-01-01" "2020-01-01" "{lookback_window_length}"'
+        f'python -m examples.cpd_quandl "{ticker}" "{os.path.join(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, kernel), ticker + ".csv")}" "1990-01-01" "2020-01-01" "{lookback_window_length}" --kernel {kernel}'
         for ticker in CURRENCY_TICKERS
     ]
     process_pool = multiprocessing.Pool(processes=N_WORKERS)
@@ -39,8 +40,13 @@ if __name__ == "__main__":
             default=CPD_DEFAULT_LBW,
             help="CPD lookback window length",
         )
+        parser.add_argument("--kernel",
+            default="Matern32",
+            help="Choose from Matern52, Matern32, Matern12, "
+        )
         return [
             parser.parse_known_args()[0].lookback_window_length,
+            parser.parse_known_args()[0].kernel,
         ]
 
     main(*get_args())
