@@ -137,3 +137,7 @@ data/*
 !data/pull_data.py
 !data/download_quandl_data.py
 !data/__init__.py
+
+# slurm
+slurm/
+slurm/*

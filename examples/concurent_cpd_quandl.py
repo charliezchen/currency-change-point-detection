@@ -20,8 +20,8 @@ def main(lookback_window_length: int, kernel: str):
         for ticker in QUANDL_TICKERS
     ]
     print(all_processes)
-    # process_pool = multiprocessing.Pool(processes=N_WORKERS)
-    # process_pool.map(os.system, all_processes)
+    process_pool = multiprocessing.Pool(processes=N_WORKERS)
+    process_pool.map(os.system, all_processes)
 
 
 if __name__ == "__main__":
