@@ -134,6 +134,7 @@ nohup*
 data/*
 !data/quandl
 !data/quandl/*
+!data/currency
 !data/pull_data.py
 !data/download_quandl_data.py
 !data/__init__.py
