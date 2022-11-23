@@ -133,7 +133,7 @@ def deep_momentum_strategy_features(df_asset: pd.DataFrame) -> pd.DataFrame:
 
 
 def include_changepoint_features(
-    features: pd.DataFrame, cpd_folder_name: pd.DataFrame, lookback_window_length: int
+    features: pd.DataFrame, cpd_folder_name: str, lookback_window_length: int
 ) -> pd.DataFrame:
     """combine CP features and DMN featuress
 
