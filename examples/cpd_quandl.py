@@ -12,7 +12,7 @@ from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
 
 
 def main(
-    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int
+    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int, kernel: str
 ):
     path = os.path.join('data', 'currency', f'{ticker}.csv')
     if os.path.exists(path):
@@ -22,7 +22,7 @@ def main(
     data["daily_returns"] = calc_returns(data["close"])
 
     cpd.run_module(
-        data, lookback_window_length, output_file_path, start_date, end_date, USE_KM_HYP_TO_INITIALISE_KC
+        data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC
     )
 
 
@@ -74,6 +74,10 @@ if __name__ == "__main__":
             default=CPD_DEFAULT_LBW,
             help="CPD lookback window length",
         )
+        parser.add_argument("--kernel",
+            default="Matern32",
+            help="Choose from Matern52, Matern32, Matern12"
+        )
 
         args = parser.parse_known_args()[0]
 
@@ -85,7 +89,8 @@ if __name__ == "__main__":
             args.output_file_path,
             start_date,
             end_date,
-            args.lookback_window_length
+            args.lookback_window_length,
+            args.kernel
         )
 
     main(*get_args())
