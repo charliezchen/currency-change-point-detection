@@ -1,7 +1,7 @@
 #!/bin/bash
 ###SBATCH --cpus-per-task=40
 #SBATCH --nodes=1
-#SBATCH --time=23:00:00
+#SBATCH --time=80:00:00
 #SBATCH --mem=128G
 #SBATCH --job-name=cpd_Matern
 #SBATCH --mail-user=yk2516@nyu.edu
@@ -14,7 +14,7 @@ source /ext3/env.sh
 
 conda activate base
 
-python3 -m examples.concurent_cpd_currency 21 --kernel Matern32
+python3 -m examples.concurent_cpd_currency 252 --kernel Matern32
 
 '
 

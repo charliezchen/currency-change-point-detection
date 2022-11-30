@@ -16,6 +16,7 @@ def main(lookback_window_length: int, kernel: str):
         os.mkdir(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, kernel))
 
     print(f"current kernel: {kernel}")
+    print(f"lookback_window_length: {lookback_window_length}")
     all_processes = [
         f'python -m examples.cpd_quandl "{ticker}" "{os.path.join(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, kernel), ticker + ".csv")}" "1990-01-01" "2020-01-01" "{lookback_window_length}" --kernel {kernel}'
         for ticker in CURRENCY_TICKERS
@@ -42,7 +43,7 @@ if __name__ == "__main__":
         )
         parser.add_argument("--kernel",
             default="Matern32",
-            help="Choose from Matern52, Matern32, Matern12, "
+            help="Choose from Matern52, Matern32, Matern12, SpectralMixture"
         )
         return [
             parser.parse_known_args()[0].lookback_window_length,

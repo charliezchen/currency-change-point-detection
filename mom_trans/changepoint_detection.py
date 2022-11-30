@@ -6,9 +6,13 @@ import gpflow
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52
+from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52, Stationary
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
+
+import sys
+sys.path.append("/scratch/yk2516/currency-change-point-detection")
+from mom_trans.spectralmixture import SpectralMixture, sm_init
 
 Kernel = gpflow.kernels.base.Kernel
 
@@ -26,7 +30,6 @@ class ChangePointsWithBounds(ChangePoints):
         """Overwrite the Chnagepoints class to
         1) only take a single location
         2) so location is bounded by interval
-
 
         Args:
             kernels (Tuple[Kernel, Kernel]): the left hand and right hand kernels
@@ -63,13 +66,39 @@ class ChangePointsWithBounds(ChangePoints):
         steepness = tf.reshape(self.steepness, (1, 1, -1))
         return tf.sigmoid(steepness * (X[:, :, None] - locations))
 
+# class SpectralMixtureKernel(Stationary):
+#     def __init__(self, input_dim, variance, lengthscales, ARD=True):
+#         super.__init__(variance, lengthscales)
+#         pass
+
+
+# def fit_sm_kernel(
+#     time_series_data: pd.DataFrame,
+#     variance: float = 1.0,
+#     lengthscale: float = 1.0,
+#     likelihood_variance: float = 1.0,
+#     kernel_choice="SpectralMixture"
+# ) -> Tuple[float, Dict[str, float]]:
+#     """Fit the SpectralMixture kernel on a time-series
+
+#     Args:
+#         time_series_data (pd.DataFrame): time-series with columns X and Y
+#         variance (float, optional): variance parameter initialisation. Defaults to 1.0.
+#         lengthscale (float, optional): lengthscale parameter initialisation. Defaults to 1.0.
+#         likelihood_variance (float, optional): likelihood variance parameter initialisation. Defaults to 1.0.
+
+#     Returns:
+#         Tuple[float, Dict[str, float]]: negative log marginal likelihood and paramters after fitting the GP
+#     """
+#     pass
 
 def fit_matern_kernel(
     time_series_data: pd.DataFrame,
     variance: float = 1.0,
     lengthscale: float = 1.0,
     likelihood_variance: float = 1.0,
-    kernel_choice="Matern32"
+    kernel_choice="Matern32",
+    num_mixtures=5
 ) -> Tuple[float, Dict[str, float]]:
     """Fit the Matern 3/2 kernel on a time-series
 
@@ -90,6 +119,24 @@ def fit_matern_kernel(
         current_kernel = Matern32(variance=variance, lengthscales=lengthscale)
     elif kernel_choice == "Matern52":
         current_kernel = Matern52(variance=variance, lengthscales=lengthscale)
+    elif kernel_choice == "SpectralMixture":
+        print(f"time_series_data.loc[:, ['X']].to_numpy().shape = {time_series_data.loc[:, ['X']].to_numpy().shape}")
+        D = time_series_data.loc[:, ['X']].to_numpy().shape[1] # number of dimensions
+
+        weights, means, scales = sm_init(
+            train_x = time_series_data.loc[:, ["X"]].to_numpy(), 
+            train_y = time_series_data.loc[:, ["Y"]].to_numpy(),
+            num_mixtures = num_mixtures
+        )
+        print(f"weights = {weights}")
+        print(f"means = {means}")
+        print(f"scales = {scales}")
+
+        if 0 in means:
+            means[np.where(means==0)[0].item()] += 0.01
+            print(f"means (updated) = {means}")
+
+        current_kernel = SpectralMixture(num_mixtures=num_mixtures, mixture_weights=weights, mixture_scales=scales, mixture_means=means, input_dim=D)
     else:
         raise NotImplementedError
 
@@ -113,7 +160,6 @@ def fit_matern_kernel(
         "kM_likelihood_variance": m.likelihood.variance.numpy(),
     }
     return nlml, params
-
 
 def fit_changepoint_kernel(
     time_series_data: pd.DataFrame,
@@ -268,7 +314,7 @@ def changepoint_loc_and_score(
             kM_nlml,
             kM_params,
         ) = fit_matern_kernel(time_series_data,kernel_choice=kernel_choice)
-
+    
     is_cp_location_default = (
         (not kC_changepoint_location)
         or kC_changepoint_location < time_series_data["X"].iloc[0]
@@ -413,7 +459,8 @@ def run_module(
                     kernel_choice=kernel_choice
                 )
 
-        except:
+        except Exception as e:
+            print(e)
             # write as NA when fails and will deal with this later
             cp_score, cp_loc, cp_loc_normalised = "NA", "NA", "NA"
 

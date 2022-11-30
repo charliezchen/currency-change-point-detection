@@ -76,7 +76,7 @@ if __name__ == "__main__":
         )
         parser.add_argument("--kernel",
             default="Matern32",
-            help="Choose from Matern52, Matern32, Matern12"
+            help="Choose from Matern52, Matern32, Matern12, SpectralMixture"
         )
 
         args = parser.parse_known_args()[0]

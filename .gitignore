@@ -142,3 +142,6 @@ data/*
 # slurm
 slurm/
 slurm/*
+
+# slurm script
+*.slurm
