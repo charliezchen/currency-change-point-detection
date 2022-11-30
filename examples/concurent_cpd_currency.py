@@ -7,16 +7,23 @@ from settings.default import (
     CPD_CURRENCY_OUTPUT_FOLDER,
     CPD_DEFAULT_LBW,
 )
+from config import *
 
 N_WORKERS = len(CURRENCY_TICKERS)
 
 
 def main(lookback_window_length: int):
-    if not os.path.exists(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length)):
-        os.mkdir(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length))
+    if not os.path.exists(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, KERNEL_CHOICE)):
+        os.mkdir(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, KERNEL_CHOICE))
+
+    print("="*20)
+    print("Kernel choice:", KERNEL_CHOICE)
+    print("="*20)
 
     all_processes = [
-        f'python -m examples.cpd_quandl "{ticker}" "{os.path.join(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length), ticker + ".csv")}" "1990-01-01" "2020-01-01" "{lookback_window_length}"'
+        f'python -m examples.cpd_quandl "{ticker}" \
+          "{os.path.join(CPD_CURRENCY_OUTPUT_FOLDER(lookback_window_length, KERNEL_CHOICE), ticker + ".csv")}" \
+          "1990-01-01" "2020-01-01" "{lookback_window_length}"'
         for ticker in CURRENCY_TICKERS
     ]
     process_pool = multiprocessing.Pool(processes=N_WORKERS)

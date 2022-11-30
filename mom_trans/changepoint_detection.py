@@ -9,6 +9,7 @@ import tensorflow as tf
 from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
+from config import *
 
 Kernel = gpflow.kernels.base.Kernel
 
@@ -92,13 +93,17 @@ def fit_matern_kernel(
         current_kernel = Matern52(variance=variance, lengthscales=lengthscale)
     else:
         raise NotImplementedError
+    
+    if VERBOSE: print(f"+++++ current_kernel = {current_kernel} +++++")
 
-    print(f"+++++ current_kernel = {current_kernel} +++++")
+    Y = time_series_data.loc[:, ["Y"]].to_numpy()
+    if len(Y[0]) > 1:
+        Y = np.concatenate(Y.tolist(), axis=0)
 
     m = gpflow.models.GPR(
         data=(
             time_series_data.loc[:, ["X"]].to_numpy(),
-            time_series_data.loc[:, ["Y"]].to_numpy(),
+            Y,
         ),
         kernel=current_kernel,
         noise_variance=likelihood_variance,
@@ -156,18 +161,23 @@ def fit_changepoint_kernel(
     else:
         raise NotImplementedError
 
-    print(f"+++++ kernel1 = {kernel1} +++++")
-    print(f"+++++ kernel2 = {kernel2} +++++")
+    if VERBOSE:
+        print(f"+++++ kernel1 = {kernel1} +++++")
+        print(f"+++++ kernel2 = {kernel2} +++++")
 
     if not kC_changepoint_location:
         kC_changepoint_location = (
             time_series_data["X"].iloc[0] + time_series_data["X"].iloc[-1]
         ) / 2.0
 
+    Y = time_series_data.loc[:, ["Y"]].to_numpy()
+    if len(Y[0]) > 1:
+        Y = np.concatenate(Y.tolist(), axis=0)
+
     m = gpflow.models.GPR(
         data=(
             time_series_data.loc[:, ["X"]].to_numpy(),
-            time_series_data.loc[:, ["Y"]].to_numpy(),
+            Y,
         ),
         kernel=ChangePointsWithBounds(
             [
@@ -250,7 +260,11 @@ def changepoint_loc_and_score(
 
     time_series_data = time_series_data_window.copy()
     Y_data = time_series_data[["Y"]].values
-    time_series_data[["Y"]] = StandardScaler().fit(Y_data).transform(Y_data)
+    if len(Y_data[0]) > 1:
+        Y_data = np.concatenate(Y_data.tolist(), axis=0)
+        time_series_data["Y"] = list(map(np.array,StandardScaler().fit(Y_data).transform(Y_data)))
+    else:
+        time_series_data[["Y"]] = StandardScaler().fit(Y_data).transform(Y_data)
     # time_series_data.loc[:, "X"] = time_series_data.loc[:, "X"] - time_series_data.loc[time_series_data.index[0], "X"]
 
     try:
@@ -385,6 +399,11 @@ def run_module(
     with open(output_csv_file_path, "w") as f:
         writer = csv.writer(f)
         writer.writerow(csv_fields)
+    if SAVE_PARAMS:
+        with open(output_csv_file_path.replace(".csv", "_param.csv"), "a") as f:
+            writer = csv.writer(f)
+            writer.writerow(["date", 'k1_variance', 'k1_lengthscale','k2_variance','k2_lengthscale','kC_likelihood_variance','kC_changepoint_location','kC_steepness'])
+        
 
     time_series_data["date"] = time_series_data.index
     time_series_data = time_series_data.reset_index(drop=True)
@@ -397,9 +416,21 @@ def run_module(
         time_index = window_end - 1
         window_date = ts_data_window["date"].iloc[-1].strftime("%Y-%m-%d")
 
+        params = None
+        param_df = pd.read_csv("data/currency_cpd_21lbw/all_cur_param.csv")
+        filtered_df = param_df[param_df.date == window_date].reset_index(drop=True)
+        if len(filtered_df) > 0:
+            params = filtered_df.drop(columns=['date']).to_dict()
+            params = {k:v[0] for k,v in params.items()}
+
         try:
-            if use_kM_hyp_to_initialise_kC:
-                cp_score, cp_loc, cp_loc_normalised, _, _ = changepoint_loc_and_score(
+            # Load pretrain parameters
+            if LOAD_PARAMS and params:
+                cp_score, cp_loc, cp_loc_normalised, _, kC_params = changepoint_loc_and_score(
+                    ts_data_window,kernel_choice=kernel_choice, **params,
+                )
+            elif use_kM_hyp_to_initialise_kC: # TODO: True
+                cp_score, cp_loc, cp_loc_normalised, _, kC_params = changepoint_loc_and_score(
                     ts_data_window,kernel_choice=kernel_choice
                 )
             else:
@@ -414,6 +445,7 @@ def run_module(
                 )
 
         except:
+            raise
             # write as NA when fails and will deal with this later
             cp_score, cp_loc, cp_loc_normalised = "NA", "NA", "NA"
 
@@ -423,3 +455,9 @@ def run_module(
             writer.writerow(
                 [window_date, time_index, cp_loc, cp_loc_normalised, cp_score]
             )
+        if SAVE_PARAMS:
+            with open(output_csv_file_path.replace(".csv", "_param.csv"), "a") as f:
+                writer = csv.writer(f)
+                writer.writerow([window_date] + list(kC_params.values()))
+        if DEBUG:
+            break

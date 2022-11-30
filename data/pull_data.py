@@ -17,11 +17,16 @@ def pull_quandl_sample_data(ticker: str) -> pd.DataFrame:
     )
 
 def pull_custom_sample_data(path) -> pd.DataFrame:
+    df = pd.read_csv(path, parse_dates=[0])
+    df = df.rename(columns={"Trade Date": "date", "Date": "date"})
+    if 'Settle' in df.columns:
+        df = df.rename(columns={"Settle": "close"})
+    else:
+        cols = df.columns[~(df.columns == 'date')]
+        df['close'] = df.loc[:, cols].apply(lambda r: tuple(r), axis=1).apply(np.array)
+        df = df.drop(columns=cols)
     return (
-        pd.read_csv(path, parse_dates=[0])
-        .rename(columns={"Trade Date": "date", "Date": "date", "Settle": "close"})
-        .set_index("date")
-        .replace(0.0, np.nan)
+        df.set_index("date")
     )
 
 
