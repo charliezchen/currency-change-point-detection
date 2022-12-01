@@ -32,10 +32,12 @@ class SpectralMixture(Kernel):
             print("Using default mixture = 1")
 
         # number of mixtures is non trainable.
-        self.num_mixtures = Parameter(num_mixtures,trainable=False)
+        self.num_mixtures = tf.constant(num_mixtures) #,trainable=False)
         self.mixture_weights = Parameter(mixture_weights,trainable=True,transform=positive())
         self.mixture_scales = Parameter(mixture_scales,trainable=True,transform=positive())
         self.mixture_means = Parameter(mixture_means,trainable=True,transform=positive())
+        self.active_dims = active_dims
+        self.input_dim = input_dim
 
     # @params_as_tensors
     def K(self, X1, X2=None):
@@ -119,7 +121,6 @@ def sm_init(train_x, train_y, num_mixtures):
             min_dist[ind] = min_dist_sort[np.amin(np.where(min_dist_sort[:,ind] > 0), axis=1), ind]
         except:
             min_dist[ind] = min_dist_sort[np.amin(np.where(min_dist_sort > 0), axis=1)]
-
 
     # for random restarts during batch processing. We need to initialize at every
     # batch. Lock the seed here.

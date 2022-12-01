@@ -12,7 +12,7 @@ from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
 
 
 def main(
-    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int, kernel: str
+    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int, kernel: str, num_mixtures: int
 ):
     path = os.path.join('data', 'currency', f'{ticker}.csv')
     if os.path.exists(path):
@@ -22,7 +22,7 @@ def main(
     data["daily_returns"] = calc_returns(data["close"])
 
     cpd.run_module(
-        data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC
+        data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC, num_mixtures
     )
 
 
@@ -76,7 +76,12 @@ if __name__ == "__main__":
         )
         parser.add_argument("--kernel",
             default="Matern32",
-            help="Choose from Matern52, Matern32, Matern12, SpectralMixture"
+            help="Choose from Matern52, Matern32, Matern12, SpectralMixture, Matern12_32, Matern12_52"
+        )
+        parser.add_argument("--num_mixtures",
+            default=5,
+            type=int,
+            help="Choose number of mixtures for the Spectral Mixture Kernel"
         )
 
         args = parser.parse_known_args()[0]
@@ -90,7 +95,8 @@ if __name__ == "__main__":
             start_date,
             end_date,
             args.lookback_window_length,
-            args.kernel
+            args.kernel,
+            args.num_mixtures,
         )
 
     main(*get_args())
