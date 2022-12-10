@@ -97,7 +97,7 @@ def fit_matern_kernel(
     if VERBOSE: print(f"+++++ current_kernel = {current_kernel} +++++")
 
     Y = time_series_data.loc[:, ["Y"]].to_numpy()
-    if len(Y[0]) > 1:
+    if isinstance(Y[0, 0], np.ndarray):
         Y = np.concatenate(Y.tolist(), axis=0)
 
     m = gpflow.models.GPR(
@@ -171,7 +171,7 @@ def fit_changepoint_kernel(
         ) / 2.0
 
     Y = time_series_data.loc[:, ["Y"]].to_numpy()
-    if len(Y[0]) > 1:
+    if isinstance(Y[0, 0], np.ndarray):
         Y = np.concatenate(Y.tolist(), axis=0)
 
     m = gpflow.models.GPR(
@@ -260,7 +260,7 @@ def changepoint_loc_and_score(
 
     time_series_data = time_series_data_window.copy()
     Y_data = time_series_data[["Y"]].values
-    if len(Y_data[0]) > 1:
+    if isinstance(Y_data[0, 0], np.ndarray):
         Y_data = np.concatenate(Y_data.tolist(), axis=0)
         time_series_data["Y"] = list(map(np.array,StandardScaler().fit(Y_data).transform(Y_data)))
     else:
@@ -400,10 +400,15 @@ def run_module(
         writer = csv.writer(f)
         writer.writerow(csv_fields)
     if SAVE_PARAMS:
-        with open(output_csv_file_path.replace(".csv", "_param.csv"), "a") as f:
+        with open(output_csv_file_path.replace(".csv", "_param.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(["date", 'k1_variance', 'k1_lengthscale','k2_variance','k2_lengthscale','kC_likelihood_variance','kC_changepoint_location','kC_steepness'])
-        
+    if LOAD_PARAMS:
+        param_df = pd.read_csv(LOAD_PARAM_PATH % (lookback_window_length, kernel_choice))
+        print("=" * 20)
+        print("Loading params from", LOAD_PARAM_PATH % (lookback_window_length, kernel_choice))
+        print("=" * 20)
+
 
     time_series_data["date"] = time_series_data.index
     time_series_data = time_series_data.reset_index(drop=True)
@@ -417,11 +422,11 @@ def run_module(
         window_date = ts_data_window["date"].iloc[-1].strftime("%Y-%m-%d")
 
         params = None
-        param_df = pd.read_csv("data/currency_cpd_21lbw/all_cur_param.csv")
-        filtered_df = param_df[param_df.date == window_date].reset_index(drop=True)
-        if len(filtered_df) > 0:
-            params = filtered_df.drop(columns=['date']).to_dict()
-            params = {k:v[0] for k,v in params.items()}
+        if LOAD_PARAMS:
+            filtered_df = param_df[param_df.date == window_date].reset_index(drop=True)
+            if len(filtered_df) > 0:
+                params = filtered_df.drop(columns=['date']).to_dict()
+                params = {k:v[0] for k,v in params.items()}
 
         try:
             # Load pretrain parameters

@@ -74,16 +74,16 @@ if __name__ == "__main__":
             default=CPD_DEFAULT_LBW,
             help="CPD lookback window length",
         )
-        parser.add_argument("--kernel",
+        parser.add_argument("kernel",
             default="Matern32",
-            help="Choose from Matern52, Matern32, Matern12"
+            help="Choose from Matern52, Matern32, Matern12",
+            nargs="?",
         )
 
         args = parser.parse_known_args()[0]
 
         start_date = dt.datetime.strptime(args.start_date, "%Y-%m-%d")
         end_date = dt.datetime.strptime(args.end_date, "%Y-%m-%d")
-
         return (
             args.ticker,
             args.output_file_path,
