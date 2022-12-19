@@ -14,6 +14,6 @@ source /ext3/env.sh
 
 conda activate base
 
-python3 -m examples.concurent_cpd_currency 252 --kernel Matern12
+python3 -m examples.concurent_cpd_currency 252 --kernel Matern12 --testing
 '
 

@@ -12,7 +12,7 @@ from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
 
 
 def main(
-    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int, kernel: str, num_mixtures: int
+    ticker: str, output_file_path: str, start_date: dt.datetime, end_date: dt.datetime, lookback_window_length :int, kernel: str, num_mixtures: int, save_path: str, testing: bool, linear: bool
 ):
     path = os.path.join('data', 'currency', f'{ticker}.csv')
     if os.path.exists(path):
@@ -22,7 +22,7 @@ def main(
     data["daily_returns"] = calc_returns(data["close"])
 
     cpd.run_module(
-        data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC, num_mixtures
+        ticker, data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC, num_mixtures, save_path, testing, linear
     )
 
 
@@ -83,6 +83,20 @@ if __name__ == "__main__":
             type=int,
             help="Choose number of mixtures for the Spectral Mixture Kernel"
         )
+        parser.add_argument("--save_path",
+            default=".",
+            help="Choose param saving path"
+        )
+        parser.add_argument("--testing",
+            default=False,
+            type=bool,
+            help="Choose number of mixtures for the Spectral Mixture Kernel"
+        )
+        parser.add_argument("--linear",
+            default=False,
+            type=bool,
+            help="Choose if multiply by linear kernel"
+        )
 
         args = parser.parse_known_args()[0]
 
@@ -97,6 +111,9 @@ if __name__ == "__main__":
             args.lookback_window_length,
             args.kernel,
             args.num_mixtures,
+            args.save_path,
+            args.testing,
+            args.linear,
         )
 
     main(*get_args())

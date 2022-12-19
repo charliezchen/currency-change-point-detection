@@ -6,7 +6,7 @@ import gpflow
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52, Stationary
+from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52, Stationary, Linear
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
 
@@ -72,7 +72,8 @@ def fit_matern_kernel(
     lengthscale: float = 1.0,
     likelihood_variance: float = 1.0,
     kernel_choice="Matern32",
-    num_mixtures=5
+    num_mixtures=5,
+    testing=False,
 ) -> Tuple[float, Dict[str, float]]:
     """Fit the Matern 3/2 kernel on a time-series
 
@@ -102,10 +103,6 @@ def fit_matern_kernel(
             train_y = time_series_data.loc[:, ["Y"]].to_numpy(),
             num_mixtures = num_mixtures
         )
-        # print(f"weights = {weights}")
-        # print(f"means = {means}")
-        # print(f"scales = {scales}")
-
         if 0 in means:
             means[np.where(means==0)[0].item()] += 0.01
             print(f"means (updated) = {means}")
@@ -137,22 +134,6 @@ def fit_matern_kernel(
 
     print(f"m.trainable_variables={m.trainable_variables}")
 
-    # try:
-    #     # these lines works! 
-    #     # m.kernel.kernels[0]=<gpflow.kernels.stationaries.Matern12 object at 0x1473fa05ea30>
-    #     # m.kernel.kernels[0].variance.numpy()=2.162948539142556e-06
-    #     # m.kernel.kernels[1]=<gpflow.kernels.stationaries.Matern32 object at 0x1473fa05ec40>
-    #     # m.kernel.kernels[1].variance.numpy()=1.001339392972587
-        
-    #     print(f"m.kernel.kernels[0]={m.kernel.kernels[0]}")
-    #     print(f"m.kernel.kernels[0].variance.numpy()={m.kernel.kernels[0].variance.numpy()}")
-    #     print(f"m.kernel.kernels[1]={m.kernel.kernels[1]}")
-    #     print(f"m.kernel.kernels[1].variance.numpy()={m.kernel.kernels[1].variance.numpy()}")
-    # except:
-    #     print(f"m.kernel[0] = {m.kernel[0]}")
-    #     print(f"m.kernel[0].variance.numpy() = {m.kernel[0].variance.numpy()}")
-    #     print(f"m.kernel[0] = {m.kernel[1]}")
-
     if kernel_choice == "SpectralMixture":
         params = {
             "kM_num_mixtures": m.kernel.num_mixtures.numpy(),
@@ -169,7 +150,7 @@ def fit_matern_kernel(
             "kM_lengthscales": [m.kernel.kernels[0].lengthscales.numpy(),m.kernel.kernels[1].lengthscales.numpy()],
             "kM_likelihood_variance": [m.likelihood.variance.numpy()],
         }
-    else:
+    else: # Matern kernels
         params = {
             "kM_variance": m.kernel.variance.numpy(),
             "kM_lengthscales": m.kernel.lengthscales.numpy(),
@@ -274,11 +255,40 @@ def fit_changepoint_kernel(
     changepoint_location = m.kernel.locations[0].numpy()
 
     if kernel_choice == "SpectralMixture":
-        # TODO change this
-        params = {}
-    elif "_" in kernel_choice: # sums of kernels
-        # TODO change this
-        params = {}
+        # TODO check this
+        params = {
+            "k1_num_mixtures":m.kernel.kernels[0].num_mixtures.numpy().flatten()[0],
+            "k1_mixture_weights":m.kernel.kernels[0].mixture_weights.numpy().flatten()[0],
+            "k1_mixture_scales":m.kernel.kernels[0].mixture_scales.numpy().flatten()[0],
+            "k1_mixture_means":m.kernel.kernels[0].mixture_means.numpy().flatten()[0],
+            "k1_active_dims":m.kernel.kernels[0].active_dims,
+            "k1_input_dim":m.kernel.kernels[0].input_dim,
+
+            "kC_likelihood_variance": m.likelihood.variance.numpy(),
+
+            "k2_num_mixtures":m.kernel.kernels[1].num_mixtures.numpy().flatten()[0],
+            "k2_mixture_weights":m.kernel.kernels[1].mixture_weights.numpy().flatten()[0],
+            "k2_mixture_scales":m.kernel.kernels[1].mixture_scales.numpy().flatten()[0],
+            "k2_mixture_means":m.kernel.kernels[1].mixture_means.numpy().flatten()[0],
+            "k2_active_dims":m.kernel.kernels[1].active_dims,
+            "k2_input_dim":m.kernel.kernels[1].input_dim,
+        }
+    elif "_" in kernel_choice: # sums of matern kernels
+        params = {
+            "k1_variance_m1": m.kernel.kernels[0].kernels[0].variance.numpy().flatten()[0],
+            "k1_variance_m2": m.kernel.kernels[0].kernels[1].variance.numpy().flatten()[0],
+            "k1_lengthscale_m1": m.kernel.kernels[0].kernels[0].lengthscales.numpy().flatten()[0],
+            "k1_lengthscale_m2": m.kernel.kernels[0].kernels[1].lengthscales.numpy().flatten()[0],
+
+            "k2_variance_m1": m.kernel.kernels[1].kernels[0].variance.numpy().flatten()[0],
+            "k2_variance_m2": m.kernel.kernels[1].kernels[1].variance.numpy().flatten()[0],
+            "k2_lengthscale_m1": m.kernel.kernels[1].kernels[0].lengthscales.numpy().flatten()[0],
+            "k2_lengthscale_m2": m.kernel.kernels[1].kernels[1].lengthscales.numpy().flatten()[0],
+            
+            "kC_likelihood_variance": m.likelihood.variance.numpy().flatten()[0],
+            "kC_changepoint_location": changepoint_location,
+
+        }
     else:
         params = {
             "k1_variance": m.kernel.kernels[0].variance.numpy().flatten()[0],
@@ -322,7 +332,9 @@ def changepoint_loc_and_score(
     kC_changepoint_location=None,
     kC_steepness=1.0,
     kernel_choice="Matern32",
-    num_mixtures=5
+    num_mixtures=5,
+    testing=False,
+    linear=False,
 ) -> Tuple[float, float, float, Dict[str, float], Dict[str, float]]:
     """For a single time-series window, calcualte changepoint score and location as detailed in https://arxiv.org/pdf/2105.13727.pdf
 
@@ -351,7 +363,7 @@ def changepoint_loc_and_score(
 
     try:
         (kM_nlml, kM_params) = fit_matern_kernel(
-            time_series_data, kM_variance, kM_lengthscale, kM_likelihood_variance,kernel_choice=kernel_choice, num_mixtures=num_mixtures
+            time_series_data, kM_variance, kM_lengthscale, kM_likelihood_variance,kernel_choice=kernel_choice, num_mixtures=num_mixtures,testing=testing,
         )
     except BaseException as ex:
         # do not want to optimise again if the hyperparameters
@@ -363,7 +375,7 @@ def changepoint_loc_and_score(
         (
             kM_nlml,
             kM_params,
-        ) = fit_matern_kernel(time_series_data,kernel_choice=kernel_choice)
+        ) = fit_matern_kernel(time_series_data,kernel_choice=kernel_choice,testing=testing,)
     
     is_cp_location_default = (
         (not kC_changepoint_location)
@@ -430,19 +442,42 @@ def changepoint_loc_and_score(
 
     else:
         if not k1_variance:
-            k1_variance = kM_params["kM_variance"]
+            if kernel_choice == "Matern32" and testing:
+                # k1_variance = 1.4062549114673104
+                # print("initialize from pre-training")
+
+                k1_variance = kM_params["kM_variance"]
+            else:
+                k1_variance = kM_params["kM_variance"]
 
         if not k1_lengthscale:
-            k1_lengthscale = kM_params["kM_lengthscales"]
+            if kernel_choice == "Matern32" and testing:
+                # k1_lengthscale = 0.008211626046394107
+                k1_lengthscale = kM_params["kM_lengthscales"]
+
+            else:
+                k1_lengthscale = kM_params["kM_lengthscales"]
 
         if not k2_variance:
-            k2_variance = kM_params["kM_variance"]
+            if kernel_choice == "Matern32" and testing:
+                # k2_variance = 0.7852215594438284
+                k2_variance = kM_params["kM_variance"]
+            else:
+                k2_variance = kM_params["kM_variance"]
 
         if not k2_lengthscale:
-            k2_lengthscale = kM_params["kM_lengthscales"]
+            if kernel_choice == "Matern32" and testing:
+                # k2_lengthscale = 0.7967639549318635
+                k2_lengthscale = kM_params["kM_lengthscales"]
+            else:
+                k2_lengthscale = kM_params["kM_lengthscales"]
 
         if not kC_likelihood_variance:
-            kC_likelihood_variance = kM_params["kM_likelihood_variance"]
+            if kernel_choice == "Matern32" and testing:
+                # kC_likelihood_variance = 1.3009585415454255e-06
+                kC_likelihood_variance = kM_params["kM_likelihood_variance"]
+            else:
+                kC_likelihood_variance = kM_params["kM_likelihood_variance"]
 
         k1_num_mixtures = None
         k1_mixture_weights = None
@@ -516,6 +551,7 @@ def changepoint_loc_and_score(
 
 
 def run_module(
+    ticker: str,
     time_series_data: pd.DataFrame,
     lookback_window_length: int,
     output_csv_file_path: str,
@@ -525,7 +561,10 @@ def run_module(
     use_kM_hyp_to_initialise_kC=True,
 
     # Spectral Mixture Parameter
-    num_mixtures = 5
+    num_mixtures = 5,
+    save_path=".",
+    testing=False,
+    linear=False,
 ):
     """Run the changepoint detection module as described in https://arxiv.org/pdf/2105.13727.pdf
     for all times (in date range if specified). Outputs results to a csv.
@@ -538,6 +577,8 @@ def run_module(
         end_date (dt.datetime, optional): end date for module. Defaults to None.
         use_kM_hyp_to_initialise_kC (bool, optional): initialise Changepoint kernel parameters using the paremters from fitting Matern 3/2 kernel. Defaults to True.
     """
+    print(f"linear={linear}")
+
     if start_date and end_date:
         first_window = time_series_data.loc[:start_date].iloc[
             -(lookback_window_length + 1) :, :
@@ -581,11 +622,11 @@ def run_module(
 
         try:
             if use_kM_hyp_to_initialise_kC:
-                cp_score, cp_loc, cp_loc_normalised, _, _ = changepoint_loc_and_score(
-                    ts_data_window,kernel_choice=kernel_choice,num_mixtures=num_mixtures
+                cp_score, cp_loc, cp_loc_normalised, kC_nlml, kC_params = changepoint_loc_and_score(
+                    ts_data_window,kernel_choice=kernel_choice,num_mixtures=num_mixtures,testing=testing,linear=linear,
                 )
             else:
-                cp_score, cp_loc, cp_loc_normalised, _, _ = changepoint_loc_and_score(
+                cp_score, cp_loc, cp_loc_normalised, kC_nlml, kC_params = changepoint_loc_and_score(
                     ts_data_window,
                     k1_lengthscale=1.0,
                     k1_variance=1.0,
@@ -593,17 +634,27 @@ def run_module(
                     k2_variance=1.0,
                     kC_likelihood_variance=1.0,
                     kernel_choice=kernel_choice,
-                    num_mixtures=num_mixtures
+                    num_mixtures=num_mixtures,
+                    testing=testing,
+                    linear=linear,
                 )
 
         except Exception as e:
             print(e)
             # write as NA when fails and will deal with this later
             cp_score, cp_loc, cp_loc_normalised = "NA", "NA", "NA"
-
+        
+        print(f"kC_params = {kC_params}")
         # #write the reults to the csv
         with open(output_csv_file_path, "a") as f:
             writer = csv.writer(f)
             writer.writerow(
                 [window_date, time_index, cp_loc, cp_loc_normalised, cp_score]
+            )
+        
+        # parameters
+        with open(save_path, "a") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [kC_nlml, kC_params]
             )
