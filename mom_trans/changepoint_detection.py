@@ -9,11 +9,11 @@ import tensorflow as tf
 from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
-from config import *
 
 Kernel = gpflow.kernels.base.Kernel
 
 MAX_ITERATIONS = 200
+VERBOSE = False
 
 class ChangePointsWithBounds(ChangePoints):
     def __init__(
@@ -351,6 +351,7 @@ def changepoint_loc_and_score(
 
 
 def run_module(
+    args,
     time_series_data: pd.DataFrame,
     lookback_window_length: int,
     output_csv_file_path: str,
@@ -370,6 +371,8 @@ def run_module(
         end_date (dt.datetime, optional): end date for module. Defaults to None.
         use_kM_hyp_to_initialise_kC (bool, optional): initialise Changepoint kernel parameters using the paremters from fitting Matern 3/2 kernel. Defaults to True.
     """
+    VERBOSE = args.verbose
+
     if start_date and end_date:
         first_window = time_series_data.loc[:start_date].iloc[
             -(lookback_window_length + 1) :, :
@@ -399,14 +402,14 @@ def run_module(
     with open(output_csv_file_path, "w") as f:
         writer = csv.writer(f)
         writer.writerow(csv_fields)
-    if SAVE_PARAMS:
+    if args.save_parameter:
         with open(output_csv_file_path.replace(".csv", "_param.csv"), "w") as f:
             writer = csv.writer(f)
             writer.writerow(["date", 'k1_variance', 'k1_lengthscale','k2_variance','k2_lengthscale','kC_likelihood_variance','kC_changepoint_location','kC_steepness'])
-    if LOAD_PARAMS:
-        param_df = pd.read_csv(LOAD_PARAM_PATH % (lookback_window_length, kernel_choice))
+    if args.load_parameter:
+        param_df = pd.read_csv(args.load_parameter_path)
         print("=" * 20)
-        print("Loading params from", LOAD_PARAM_PATH % (lookback_window_length, kernel_choice))
+        print("Loading params from", args.load_parameter_path)
         print("=" * 20)
 
 
@@ -422,7 +425,7 @@ def run_module(
         window_date = ts_data_window["date"].iloc[-1].strftime("%Y-%m-%d")
 
         params = None
-        if LOAD_PARAMS:
+        if args.load_parameter:
             filtered_df = param_df[param_df.date == window_date].reset_index(drop=True)
             if len(filtered_df) > 0:
                 params = filtered_df.drop(columns=['date']).to_dict()
@@ -430,7 +433,7 @@ def run_module(
 
         try:
             # Load pretrain parameters
-            if LOAD_PARAMS and params:
+            if args.load_parameter and params:
                 cp_score, cp_loc, cp_loc_normalised, _, kC_params = changepoint_loc_and_score(
                     ts_data_window,kernel_choice=kernel_choice, **params,
                 )
@@ -460,9 +463,9 @@ def run_module(
             writer.writerow(
                 [window_date, time_index, cp_loc, cp_loc_normalised, cp_score]
             )
-        if SAVE_PARAMS:
+        if args.save_parameter:
             with open(output_csv_file_path.replace(".csv", "_param.csv"), "a") as f:
                 writer = csv.writer(f)
                 writer.writerow([window_date] + list(kC_params.values()))
-        if DEBUG:
+        if args.debug:
             break

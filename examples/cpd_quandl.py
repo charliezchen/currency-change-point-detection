@@ -9,6 +9,7 @@ from mom_trans.data_prep import calc_returns
 from data.pull_data import pull_quandl_sample_data, pull_custom_sample_data
 
 from settings.default import CPD_DEFAULT_LBW, USE_KM_HYP_TO_INITIALISE_KC
+import pickle
 
 
 def main(
@@ -21,8 +22,11 @@ def main(
         data = pull_quandl_sample_data(ticker)
     data["daily_returns"] = calc_returns(data["close"])
 
+    with open("args.pkl", 'rb') as f:
+        args = pickle.load(f)
+
     cpd.run_module(
-        data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC
+        args, data, lookback_window_length, output_file_path, start_date, end_date, kernel, USE_KM_HYP_TO_INITIALISE_KC
     )
 
 

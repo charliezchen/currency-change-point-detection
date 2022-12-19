@@ -1,6 +1,5 @@
 import os
 
-from config import *
 
 CPD_LBWS = [10, 21, 63, 126, 256]
 CPD_DEFAULT_LBW = 21
@@ -12,8 +11,8 @@ CPD_QUANDL_OUTPUT_FOLDER = lambda lbw, kernel_choice: os.path.join(
     "data", f"quandl_cpd_{(lbw if lbw else 'none')}lbw_{kernel_choice}"
 )
 
-CPD_CURRENCY_OUTPUT_FOLDER = lambda lbw, kernel_choice: os.path.join(
-    "data", f"currency_cpd_{EXPERIMENT_NAME}_{(lbw if lbw else 'none')}lbw_{kernel_choice}"
+CPD_CURRENCY_OUTPUT_FOLDER = lambda start_date, end_date, lbw, kernel_choice: os.path.join(
+    "data", f"currency_cpd_{start_date}_{end_date}_{(lbw if lbw else 'none')}lbw_{kernel_choice}"
 )
 CPD_QUANDL_OUTPUT_FOLDER_DEFAULT = CPD_QUANDL_OUTPUT_FOLDER(CPD_DEFAULT_LBW, CPD_DEFAULT_KERNEL)
 
