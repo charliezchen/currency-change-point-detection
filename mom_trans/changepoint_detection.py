@@ -6,7 +6,7 @@ import gpflow
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52
+from gpflow.kernels import ChangePoints, Matern12, Matern32, Matern52, Linear
 from sklearn.preprocessing import StandardScaler
 from tensorflow_probability import bijectors as tfb
 
@@ -91,6 +91,9 @@ def fit_matern_kernel(
         current_kernel = Matern32(variance=variance, lengthscales=lengthscale)
     elif kernel_choice == "Matern52":
         current_kernel = Matern52(variance=variance, lengthscales=lengthscale)
+    elif "Linear" in kernel_choice:
+        matern = eval(kernel_choice.split('_')[-1])
+        current_kernel = matern(variance=variance, lengthscales=lengthscale) + Linear(variance)
     else:
         raise NotImplementedError
     
@@ -112,11 +115,19 @@ def fit_matern_kernel(
     nlml = opt.minimize(
         m.training_loss, m.trainable_variables, options=dict(maxiter=MAX_ITERATIONS)
     ).fun
-    params = {
-        "kM_variance": m.kernel.variance.numpy(),
-        "kM_lengthscales": m.kernel.lengthscales.numpy(),
-        "kM_likelihood_variance": m.likelihood.variance.numpy(),
-    }
+    if 'Linear' in kernel_choice:
+        params = {
+            "kM_variance": m.kernel.kernels[0].variance.numpy(),
+            "kM_lengthscales": m.kernel.kernels[0].lengthscales.numpy(),
+            "kM_likelihood_variance": m.likelihood.variance.numpy(),
+            "kM_linear_variance": m.kernel.kernels[1].variance.numpy()
+        }
+    else:
+        params = {
+            "kM_variance": m.kernel.variance.numpy(),
+            "kM_lengthscales": m.kernel.lengthscales.numpy(),
+            "kM_likelihood_variance": m.likelihood.variance.numpy(),
+        }
     return nlml, params
 
 
@@ -126,6 +137,8 @@ def fit_changepoint_kernel(
     k1_lengthscale: float = 1.0,
     k2_variance: float = 1.0,
     k2_lengthscale: float = 1.0,
+    k1_linear_variance: float = 1.0,
+    k2_linear_variance: float = 1.0,
     kC_likelihood_variance=1.0,
     kC_changepoint_location=None,
     kC_steepness=1.0,
@@ -158,6 +171,10 @@ def fit_changepoint_kernel(
     elif kernel_choice == "Matern52":
         kernel1 = Matern52(variance=k1_variance, lengthscales=k1_lengthscale)
         kernel2 = Matern52(variance=k2_variance, lengthscales=k2_lengthscale)
+    elif "Linear" in kernel_choice:
+        matern = eval(kernel_choice.split('_')[-1])
+        kernel1 = matern(variance=k1_variance, lengthscales=k1_lengthscale) + Linear(k1_linear_variance)
+        kernel2 = matern(variance=k2_variance, lengthscales=k2_lengthscale) + Linear(k2_linear_variance)
     else:
         raise NotImplementedError
 
@@ -195,15 +212,28 @@ def fit_changepoint_kernel(
         m.training_loss, m.trainable_variables, options=dict(maxiter=200)
     ).fun
     changepoint_location = m.kernel.locations[0].numpy()
-    params = {
-        "k1_variance": m.kernel.kernels[0].variance.numpy().flatten()[0],
-        "k1_lengthscale": m.kernel.kernels[0].lengthscales.numpy().flatten()[0],
-        "k2_variance": m.kernel.kernels[1].variance.numpy().flatten()[0],
-        "k2_lengthscale": m.kernel.kernels[1].lengthscales.numpy().flatten()[0],
-        "kC_likelihood_variance": m.likelihood.variance.numpy().flatten()[0],
-        "kC_changepoint_location": changepoint_location,
-        "kC_steepness": m.kernel.steepness.numpy(),
-    }
+    if 'Linear' in kernel_choice:
+        params = {
+            "k1_variance": m.kernel.kernels[0].kernels[0].variance.numpy().flatten()[0],
+            "k1_lengthscale": m.kernel.kernels[0].kernels[0].lengthscales.numpy().flatten()[0],
+            "k2_variance": m.kernel.kernels[1].kernels[0].variance.numpy().flatten()[0],
+            "k2_lengthscale": m.kernel.kernels[1].kernels[0].lengthscales.numpy().flatten()[0],
+            "k1_linear_variance": m.kernel.kernels[0].kernels[1].variance.numpy().flatten()[0],
+            "k2_linear_variance": m.kernel.kernels[1].kernels[1].variance.numpy().flatten()[0],
+            "kC_likelihood_variance": m.likelihood.variance.numpy().flatten()[0],
+            "kC_changepoint_location": changepoint_location,
+            "kC_steepness": m.kernel.steepness.numpy(),
+        }
+    else:
+        params = {
+            "k1_variance": m.kernel.kernels[0].variance.numpy().flatten()[0],
+            "k1_lengthscale": m.kernel.kernels[0].lengthscales.numpy().flatten()[0],
+            "k2_variance": m.kernel.kernels[1].variance.numpy().flatten()[0],
+            "k2_lengthscale": m.kernel.kernels[1].lengthscales.numpy().flatten()[0],
+            "kC_likelihood_variance": m.likelihood.variance.numpy().flatten()[0],
+            "kC_changepoint_location": changepoint_location,
+            "kC_steepness": m.kernel.steepness.numpy(),
+        }
     return changepoint_location, nlml, params
 
 
@@ -232,6 +262,8 @@ def changepoint_loc_and_score(
     k1_lengthscale: float = None,
     k2_variance: float = None,
     k2_lengthscale: float = None,
+    k1_linear_variance: float = None,
+    k2_linear_variance: float = None,
     kC_likelihood_variance=1.0, #TODO note this seems to work better by resetting this
     # kC_likelihood_variance=None,
     kC_changepoint_location=None,
@@ -308,6 +340,13 @@ def changepoint_loc_and_score(
 
     if not kC_likelihood_variance:
         kC_likelihood_variance = kM_params["kM_likelihood_variance"]
+    
+    if "Linear" in kernel_choice:
+        if not k1_linear_variance:
+            k1_linear_variance = kM_params["kM_linear_variance"]
+        
+        if not k2_linear_variance:
+            k2_linear_variance = kM_params["kM_linear_variance"]
 
     try:
         (changepoint_location, kC_nlml, kC_params) = fit_changepoint_kernel(
@@ -316,6 +355,8 @@ def changepoint_loc_and_score(
             k1_lengthscale=k1_lengthscale,
             k2_variance=k2_variance,
             k2_lengthscale=k2_lengthscale,
+            k1_linear_variance=k1_linear_variance,
+            k2_linear_variance=k2_linear_variance,
             kC_likelihood_variance=kC_likelihood_variance,
             kC_changepoint_location=kC_changepoint_location,
             kC_steepness=kC_steepness,

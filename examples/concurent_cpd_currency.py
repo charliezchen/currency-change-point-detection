@@ -78,10 +78,8 @@ if __name__ == "__main__":
                             default="2020-01-01",
                             help="end date for cpd")
 
-
-        group = parser.add_mutually_exclusive_group()
-        group.add_argument('--save_parameter', action='store_true', help='save parameter')
-        group.add_argument('--load_parameter', action='store_true', help='load parameter')
+        parser.add_argument('--save_parameter', action='store_true', help='save parameter')
+        parser.add_argument('--load_parameter', action='store_true', help='load parameter')
 
         parser.add_argument('--debug', action='store_true', help='debug mode')
         parser.add_argument('--verbose', action='store_true', help='verbose mode')
